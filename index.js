@@ -1,20 +1,34 @@
 require('dotenv').config()
 
-const Discord = require("discord.js")
-const client = new Discord.Client({intents: ["GUILD_MESSAGES"]})
+const fs = require('node:fs')
+const {Client, Collection, Intents} = require("discord.js")
+const client = new Client({intents: [Intents.FLAGS.GUILDS]})
+
+client.commands = new Collection()
+
+const commandFiles = fs.readdirSync('./commands').filter(f => f.endsWith('.js'))
+for (const file of commandFiles) {
+  const command = require(`./commands/${file}`)
+  client.commands.set(command.data.name, command)
+}
+
 
 client.on("ready", () => {
   console.log(`Logged in as ${client.user.tag}!`)
 })
 
-client.on("messageCreate", msg => {
-  const requestRoll = msg.content.match(/^!roll (?<count>\d*)(?<prefix>d|w)(?<sides>\d+)/)
-  if (msg.content === "!ping") {
-    msg.reply("pong!")
-  } else if (requestRoll) {
-    const minval = requestRoll.groups.count || 1
-    const maxval = (requestRoll.groups.sides || 6) * minval - minval
-    msg.reply('rolled a ' + (Math.floor(Math.random() * maxval) + minval))
+client.on("interactionCreate", async interaction => {
+  if (!interaction.isCommand()) return
+
+  const command = client.commands.get(interaction.commandName)
+
+  if (!command) return
+
+  try {
+    await command.execute(interaction)
+  } catch(error) {
+    console.error(error)
+    await interaction.reply({content: 'There was an error while executing this command!', ephemeral: true})
   }
 })
 
